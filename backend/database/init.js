@@ -8,12 +8,13 @@ if (!DATABASE_URL) {
     process.exit(1);
 }
 
-// 创建数据库连接池
+// 创建数据库连接池 - 强制使用 IPv4
 const pool = new Pool({
     connectionString: DATABASE_URL,
     ssl: {
         rejectUnauthorized: false
-    }
+    },
+    family: 4  // 强制使用 IPv4
 });
 
 // 初始化数据库
