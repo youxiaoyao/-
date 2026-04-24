@@ -1,4 +1,5 @@
 const { Pool } = require('pg');
+const dns = require('dns').promises;
 
 // 从环境变量获取数据库连接信息
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -8,26 +9,69 @@ if (!DATABASE_URL) {
     process.exit(1);
 }
 
-// 创建数据库连接池
-const pool = new Pool({
-    connectionString: DATABASE_URL,
-    ssl: {
-        rejectUnauthorized: false
-    },
-    // 增加连接超时时间
-    connectionTimeoutMillis: 10000,
-    idleTimeoutMillis: 30000
-});
+// 解析连接字符串，获取主机名
+function parseDatabaseUrl(url) {
+    const parts = url.split('@');
+    const credentials = parts[0].replace('postgres://', '');
+    const hostPart = parts[1].split(':');
+    const host = hostPart[0];
+    const port = hostPart[1]?.split('/')[0] || '5432';
+    const dbName = hostPart[1]?.split('/')[1] || 'postgres';
+    
+    return { credentials, host, port, dbName };
+}
+
+// 创建数据库连接池（强制 IPv4）
+async function createPool() {
+    const parsed = parseDatabaseUrl(DATABASE_URL);
+    
+    try {
+        // 强制解析为 IPv4 地址
+        const addresses = await dns.lookup(parsed.host, { family: 4, all: true });
+        const ipv4Address = addresses[0]?.address || addresses.address;
+        
+        console.log(`解析到 IPv4 地址: ${ipv4Address}`);
+        
+        // 构建新的连接字符串（使用 IPv4 地址）
+        const newUrl = `postgres://${parsed.credentials}@${ipv4Address}:${parsed.port}/${parsed.dbName}`;
+        
+        return new Pool({
+            connectionString: newUrl,
+            ssl: {
+                rejectUnauthorized: false
+            },
+            connectionTimeoutMillis: 10000,
+            idleTimeoutMillis: 30000
+        });
+    } catch (err) {
+        console.error('解析 IPv4 地址失败:', err);
+        // 如果解析失败，使用原始连接字符串尝试
+        return new Pool({
+            connectionString: DATABASE_URL,
+            ssl: {
+                rejectUnauthorized: false
+            },
+            connectionTimeoutMillis: 10000,
+            idleTimeoutMillis: 30000
+        });
+    }
+}
+
+let pool = null;
 
 // 初始化数据库
 async function initDatabase() {
     let retries = 3;
     let lastError = null;
     
-    // 重试连接机制
     while (retries > 0) {
         try {
             console.log(`尝试连接数据库 (剩余重试: ${retries})...`);
+            
+            // 创建连接池（强制 IPv4）
+            if (!pool) {
+                pool = await createPool();
+            }
             
             // 测试连接
             const client = await pool.connect();
@@ -50,7 +94,6 @@ async function initDatabase() {
             retries--;
             
             if (retries > 0) {
-                // 等待几秒后重试
                 await new Promise(resolve => setTimeout(resolve, 5000));
             }
         }
@@ -63,15 +106,12 @@ async function initDatabase() {
 // 创建数据表
 async function createTables(client) {
     const queries = [
-        // 用户表
         `CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
             username TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`,
-
-        // 任务表
         `CREATE TABLE IF NOT EXISTS tasks (
             id SERIAL PRIMARY KEY,
             user_id INTEGER,
@@ -84,8 +124,6 @@ async function createTables(client) {
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users (id)
         )`,
-
-        // 课程表
         `CREATE TABLE IF NOT EXISTS schedules (
             id SERIAL PRIMARY KEY,
             user_id INTEGER,
@@ -113,14 +151,12 @@ async function insertInitialData(client) {
     if (count === 0) {
         console.log('插入初始数据...');
 
-        // 插入默认用户
         const userResult = await client.query(
             'INSERT INTO users (username, password) VALUES ($1, $2) RETURNING id',
             ['admin', '123456']
         );
         const userId = userResult.rows[0].id;
 
-        // 插入示例任务
         const tasks = [
             [userId, '完成Python作业', 'Python', 120, 'high', '2024-12-31', false],
             [userId, '复习数据结构', '数据结构', 90, 'medium', '2024-12-28', true],
@@ -135,7 +171,6 @@ async function insertInitialData(client) {
             );
         }
 
-        // 插入示例课程
         const schedules = [
             [userId, '高等数学', '张老师', '教学楼A301', '第1-16周', '周一', '08:00-09:40'],
             [userId, '大学英语', '李老师', '教学楼B202', '第1-16周', '周二', '10:00-11:40'],
