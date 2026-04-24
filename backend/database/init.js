@@ -1,5 +1,4 @@
 const { Pool } = require('pg');
-const dns = require('dns');
 
 // 从环境变量获取数据库连接信息
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -9,71 +8,56 @@ if (!DATABASE_URL) {
     process.exit(1);
 }
 
-// 解析 DATABASE_URL 获取主机名
-const url = require('url');
-const parsedUrl = url.parse(DATABASE_URL);
-const hostname = parsedUrl.hostname;
-
-// 强制解析为 IPv4 地址
-async function getIPv4Address(host) {
-    return new Promise((resolve, reject) => {
-        dns.lookup(host, { family: 4 }, (err, address) => {
-            if (err) {
-                reject(err);
-                return;
-            }
-            resolve(address);
-        });
-    });
-}
-
 // 创建数据库连接池
-async function createPool() {
-    try {
-        const ipv4Address = await getIPv4Address(hostname);
-        console.log(`解析到 IPv4 地址: ${ipv4Address}`);
-        
-        // 替换 URL 中的主机名为 IPv4 地址
-        const newUrl = DATABASE_URL.replace(hostname, ipv4Address);
-        
-        return new Pool({
-            connectionString: newUrl,
-            ssl: {
-                rejectUnauthorized: false
-            }
-        });
-    } catch (err) {
-        console.error('解析 IPv4 地址失败:', err);
-        process.exit(1);
-    }
-}
-
-let pool = null;
+const pool = new Pool({
+    connectionString: DATABASE_URL,
+    ssl: {
+        rejectUnauthorized: false
+    },
+    // 增加连接超时时间
+    connectionTimeoutMillis: 10000,
+    idleTimeoutMillis: 30000
+});
 
 // 初始化数据库
 async function initDatabase() {
-    try {
-        // 创建连接池（强制 IPv4）
-        pool = await createPool();
-        
-        // 测试连接
-        const client = await pool.connect();
-        console.log('已连接到PostgreSQL数据库');
-        
-        // 创建表
-        await createTables(client);
-        console.log('数据库表创建成功');
-        
-        // 插入初始数据
-        await insertInitialData(client);
-        console.log('初始数据插入完成');
-        
-        client.release();
-        return pool;
-    } catch (err) {
-        console.error('数据库初始化失败:', err);
-        process.exit(1);
+    let retries = 3;
+    let lastError = null;
+    
+    // 重试连接机制
+    while (retries > 0) {
+        try {
+            console.log(`尝试连接数据库 (剩余重试: ${retries})...`);
+            
+            // 测试连接
+            const client = await pool.connect();
+            console.log('✓ 已连接到PostgreSQL数据库');
+            
+            // 创建表
+            await createTables(client);
+            console.log('✓ 数据库表创建成功');
+            
+            // 插入初始数据
+            await insertInitialData(client);
+            console.log('✓ 初始数据插入完成');
+            
+            client.release();
+            return pool;
+            
+        } catch (err) {
+            lastError = err;
+            console.error(`连接失败 (重试 ${retries}):`, err.message);
+            retries--;
+            
+            if (retries > 0) {
+                // 等待几秒后重试
+                await new Promise(resolve => setTimeout(resolve, 5000));
+            }
+        }
     }
+    
+    console.error('❌ 数据库初始化失败:', lastError);
+    process.exit(1);
 }
 
 // 创建数据表
