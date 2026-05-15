@@ -2,9 +2,51 @@
 const http = require("http");
 const url = require("url");
 const path = require("path");
+const fs = require("fs");
 
 // 导入数据库和DAO
 const { initDatabase } = require('./database/init');
+
+// MIME 类型映射
+const MIME_TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.map': 'application/json',
+};
+
+function serveStatic(req, res) {
+  // 生产环境下提供前端构建产物
+  const distDir = path.join(__dirname, '..', 'dist');
+  let filePath = path.join(distDir, req.url === '/' ? 'index.html' : req.url);
+
+  // SPA 支持：非 API 路由返回 index.html
+  if (!req.url.startsWith('/api') && !fs.existsSync(filePath)) {
+    filePath = path.join(distDir, 'index.html');
+  }
+
+  const ext = path.extname(filePath);
+  const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+
+  fs.readFile(filePath, (err, data) => {
+    if (err) {
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Not found');
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': contentType });
+    res.end(data);
+  });
+}
 const UserDAO = require('./dao/UserDAO');
 const TaskDAO = require('./dao/TaskDAO');
 const ScheduleDAO = require('./dao/ScheduleDAO');
@@ -206,8 +248,8 @@ const server = http.createServer(async (req, res) => {
     }
     handleSchedules(req, res, req.method, body);
   } else {
-    res.writeHead(404, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ code: 404, msg: "Not found" }));
+    // 非 API 路由 → 静态文件（前端 SPA）
+    serveStatic(req, res);
   }
 });
 
@@ -219,7 +261,7 @@ initDatabase()
     taskDAO = new TaskDAO(db);
     scheduleDAO = new ScheduleDAO(db);
 
-    const PORT = 3004;
+    const PORT = process.env.PORT || 3004;
     server.listen(PORT, () => {
       console.log(`Backend server running on http://localhost:${PORT}`);
       console.log('Database connected successfully');
