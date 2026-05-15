@@ -57,9 +57,9 @@ let userDAO;
 let taskDAO;
 let scheduleDAO;
 
-function generateToken(username) {
+function generateToken() {
   // 简单的token生成，实际项目中应该使用JWT
-  return "token_" + Date.now() + "_" + username + "_" + Math.random().toString(36).substr(2);
+  return "token_" + Date.now() + "_" + Math.random().toString(36).substr(2) + Math.random().toString(36).substr(2);
 }
 
 function verifyToken(token) {
@@ -89,7 +89,7 @@ async function handleLogin(req, res, body) {
   try {
     const user = await userDAO.validateUser(username, password);
     if (user) {
-      const token = generateToken(username);
+      const token = generateToken();
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ code: 200, msg: "登录成功", token, username }));
     } else {
