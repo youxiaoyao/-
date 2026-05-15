@@ -57,14 +57,18 @@ let userDAO;
 let taskDAO;
 let scheduleDAO;
 
-function generateToken() {
-  // 简单的token生成，实际项目中应该使用JWT
-  return "token_" + Date.now() + "_" + Math.random().toString(36).substr(2) + Math.random().toString(36).substr(2);
+function generateToken(userId) {
+  // token 格式: token_{userId}_{timestamp}_{random}
+  // userId 是数字，不会触发 HTTP header 编码问题
+  return "token_" + userId + "_" + Date.now() + "_" + Math.random().toString(36).substr(2) + Math.random().toString(36).substr(2);
 }
 
-function verifyToken(token) {
-  // 简单的token验证，实际项目中应该验证JWT签名
-  return token && token.startsWith("token_");
+function parseUserIdFromToken(token) {
+  if (!token || !token.startsWith("token_")) return null;
+  const parts = token.split("_");
+  if (parts.length < 2) return null;
+  const userId = parseInt(parts[1], 10);
+  return isNaN(userId) ? null : userId;
 }
 
 function parseBody(req) {
@@ -89,7 +93,7 @@ async function handleLogin(req, res, body) {
   try {
     const user = await userDAO.validateUser(username, password);
     if (user) {
-      const token = generateToken();
+      const token = generateToken(user.id);
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ code: 200, msg: "登录成功", token, username }));
     } else {
@@ -128,11 +132,11 @@ async function handleRegister(req, res, body) {
   }
 }
 
-async function handleTasks(req, res, method, body) {
+async function handleTasks(req, res, method, body, userId) {
   try {
     switch (method) {
       case "GET":
-        const tasks = await taskDAO.getAllTasks();
+        const tasks = await taskDAO.getAllTasks(userId);
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ code: 200, msg: "success", data: tasks }));
         break;
@@ -144,19 +148,19 @@ async function handleTasks(req, res, method, body) {
           priority: body.priority || "medium",
           deadline: body.deadline || new Date().toISOString().split("T")[0],
           is_completed: body.is_completed || false
-        });
+        }, userId);
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ code: 200, msg: "新增任务成功", id: newTask.id }));
         break;
       case "PATCH":
         const taskId = parseInt(req.url.split("/")[3]);
-        await taskDAO.updateTask(taskId, body);
+        await taskDAO.updateTask(taskId, body, userId);
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ code: 200, msg: "更新任务成功" }));
         break;
       case "DELETE":
         const deleteTaskId = parseInt(req.url.split("/")[3]);
-        await taskDAO.deleteTask(deleteTaskId);
+        await taskDAO.deleteTask(deleteTaskId, userId);
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ code: 200, msg: "删除任务成功" }));
         break;
@@ -171,11 +175,11 @@ async function handleTasks(req, res, method, body) {
   }
 }
 
-async function handleSchedules(req, res, method, body) {
+async function handleSchedules(req, res, method, body, userId) {
   try {
     switch (method) {
       case "GET":
-        const schedules = await scheduleDAO.getAllSchedules();
+        const schedules = await scheduleDAO.getAllSchedules(userId);
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ code: 200, msg: "success", data: schedules }));
         break;
@@ -187,13 +191,13 @@ async function handleSchedules(req, res, method, body) {
           week: body.week || "第1-16周",
           weekday: body.weekday || "周一",
           time: body.time || "08:00-09:40"
-        });
+        }, userId);
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ code: 200, msg: "新增课程成功", id: newSchedule.id }));
         break;
       case "DELETE":
         const deleteScheduleId = parseInt(req.url.split("/")[3]);
-        await scheduleDAO.deleteSchedule(deleteScheduleId);
+        await scheduleDAO.deleteSchedule(deleteScheduleId, userId);
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ code: 200, msg: "删除课程成功" }));
         break;
@@ -228,25 +232,25 @@ const server = http.createServer(async (req, res) => {
   } else if (pathname === "/api/register" && req.method === "POST") {
     handleRegister(req, res, body);
   } else if (pathname.startsWith("/api/tasks")) {
-    // 验证token
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
-    if (!verifyToken(token)) {
+    const userId = parseUserIdFromToken(token);
+    if (!userId) {
       res.writeHead(401, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ code: 401, msg: "认证失败" }));
       return;
     }
-    handleTasks(req, res, req.method, body);
+    handleTasks(req, res, req.method, body, userId);
   } else if (pathname.startsWith("/api/schedules")) {
-    // 验证token
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
-    if (!verifyToken(token)) {
+    const userId = parseUserIdFromToken(token);
+    if (!userId) {
       res.writeHead(401, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ code: 401, msg: "认证失败" }));
       return;
     }
-    handleSchedules(req, res, req.method, body);
+    handleSchedules(req, res, req.method, body, userId);
   } else {
     // 非 API 路由 → 静态文件（前端 SPA）
     serveStatic(req, res);

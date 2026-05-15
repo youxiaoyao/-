@@ -4,7 +4,7 @@ class TaskDAO {
     }
 
     // 获取所有任务
-    async getAllTasks(userId = 1) {
+    async getAllTasks(userId ) {
         const result = await this.db.query(
             'SELECT * FROM tasks WHERE user_id = ? ORDER BY created_at DESC',
             [userId]
@@ -13,7 +13,7 @@ class TaskDAO {
     }
 
     // 创建新任务
-    async createTask(taskData, userId = 1) {
+    async createTask(taskData, userId ) {
         const result = await this.db.query(
             `INSERT INTO tasks (user_id, name, subject, duration, priority, deadline, is_completed)
              VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
@@ -31,7 +31,7 @@ class TaskDAO {
     }
 
     // 更新任务
-    async updateTask(taskId, taskData, userId = 1) {
+    async updateTask(taskId, taskData, userId ) {
         const fields = [];
         const values = [];
 
@@ -75,7 +75,7 @@ class TaskDAO {
     }
 
     // 删除任务
-    async deleteTask(taskId, userId = 1) {
+    async deleteTask(taskId, userId ) {
         const result = await this.db.query(
             'DELETE FROM tasks WHERE id = ? AND user_id = ?',
             [taskId, userId]
@@ -84,7 +84,7 @@ class TaskDAO {
     }
 
     // 根据ID获取任务
-    async getTaskById(taskId, userId = 1) {
+    async getTaskById(taskId, userId ) {
         const result = await this.db.query(
             'SELECT * FROM tasks WHERE id = ? AND user_id = ?',
             [taskId, userId]

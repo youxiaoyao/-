@@ -4,7 +4,7 @@ class ScheduleDAO {
     }
 
     // 获取所有课程
-    async getAllSchedules(userId = 1) {
+    async getAllSchedules(userId) {
         const result = await this.db.query(
             'SELECT * FROM schedules WHERE user_id = ? ORDER BY created_at DESC',
             [userId]
@@ -13,7 +13,7 @@ class ScheduleDAO {
     }
 
     // 创建新课程
-    async createSchedule(scheduleData, userId = 1) {
+    async createSchedule(scheduleData, userId) {
         const result = await this.db.query(
             `INSERT INTO schedules (user_id, name, teacher, location, week, weekday, time)
              VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
@@ -31,7 +31,7 @@ class ScheduleDAO {
     }
 
     // 删除课程
-    async deleteSchedule(scheduleId, userId = 1) {
+    async deleteSchedule(scheduleId, userId) {
         const result = await this.db.query(
             'DELETE FROM schedules WHERE id = ? AND user_id = ?',
             [scheduleId, userId]
@@ -40,7 +40,7 @@ class ScheduleDAO {
     }
 
     // 根据ID获取课程
-    async getScheduleById(scheduleId, userId = 1) {
+    async getScheduleById(scheduleId, userId) {
         const result = await this.db.query(
             'SELECT * FROM schedules WHERE id = ? AND user_id = ?',
             [scheduleId, userId]
@@ -49,7 +49,7 @@ class ScheduleDAO {
     }
 
     // 检查时间冲突
-    async checkTimeConflict(weekday, time, excludeId = null, userId = 1) {
+    async checkTimeConflict(weekday, time, excludeId = null, userId) {
         let query = 'SELECT * FROM schedules WHERE user_id = ? AND weekday = ? AND time = ?';
         const params = [userId, weekday, time];
 
