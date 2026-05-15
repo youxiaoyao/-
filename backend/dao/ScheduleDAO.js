@@ -6,7 +6,7 @@ class ScheduleDAO {
     // 获取所有课程
     async getAllSchedules(userId = 1) {
         const result = await this.db.query(
-            'SELECT * FROM schedules WHERE user_id = $1 ORDER BY created_at DESC',
+            'SELECT * FROM schedules WHERE user_id = ? ORDER BY created_at DESC',
             [userId]
         );
         return result.rows;
@@ -16,7 +16,7 @@ class ScheduleDAO {
     async createSchedule(scheduleData, userId = 1) {
         const result = await this.db.query(
             `INSERT INTO schedules (user_id, name, teacher, location, week, weekday, time)
-             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+             VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
             [
                 userId,
                 scheduleData.name,
@@ -33,7 +33,7 @@ class ScheduleDAO {
     // 删除课程
     async deleteSchedule(scheduleId, userId = 1) {
         const result = await this.db.query(
-            'DELETE FROM schedules WHERE id = $1 AND user_id = $2',
+            'DELETE FROM schedules WHERE id = ? AND user_id = ?',
             [scheduleId, userId]
         );
         return { changes: result.rowCount };
@@ -42,7 +42,7 @@ class ScheduleDAO {
     // 根据ID获取课程
     async getScheduleById(scheduleId, userId = 1) {
         const result = await this.db.query(
-            'SELECT * FROM schedules WHERE id = $1 AND user_id = $2',
+            'SELECT * FROM schedules WHERE id = ? AND user_id = ?',
             [scheduleId, userId]
         );
         return result.rows[0] || null;
@@ -50,11 +50,11 @@ class ScheduleDAO {
 
     // 检查时间冲突
     async checkTimeConflict(weekday, time, excludeId = null, userId = 1) {
-        let query = 'SELECT * FROM schedules WHERE user_id = $1 AND weekday = $2 AND time = $3';
+        let query = 'SELECT * FROM schedules WHERE user_id = ? AND weekday = ? AND time = ?';
         const params = [userId, weekday, time];
 
         if (excludeId) {
-            query += ' AND id != $4';
+            query += ' AND id != ?';
             params.push(excludeId);
         }
 

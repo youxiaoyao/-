@@ -1,4 +1,5 @@
-﻿const http = require("http");
+﻿require('dotenv').config();
+const http = require("http");
 const url = require("url");
 const path = require("path");
 
@@ -221,7 +222,7 @@ initDatabase()
     const PORT = 3004;
     server.listen(PORT, () => {
       console.log(`Backend server running on http://localhost:${PORT}`);
-      console.log('SQLite database connected successfully');
+      console.log('Database connected successfully');
     });
   })
   .catch(error => {

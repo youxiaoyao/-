@@ -7,7 +7,7 @@ class UserDAO {
     async createUser(username, password) {
         // 检查用户名是否已存在
         const existingUser = await this.db.query(
-            'SELECT id FROM users WHERE username = $1',
+            'SELECT id FROM users WHERE username = ?',
             [username]
         );
 
@@ -17,7 +17,7 @@ class UserDAO {
 
         // 插入新用户
         const result = await this.db.query(
-            'INSERT INTO users (username, password) VALUES ($1, $2) RETURNING id',
+            'INSERT INTO users (username, password) VALUES (?, ?) RETURNING id',
             [username, password]
         );
 
@@ -27,7 +27,7 @@ class UserDAO {
     // 验证用户登录
     async validateUser(username, password) {
         const result = await this.db.query(
-            'SELECT id, username, password FROM users WHERE username = $1',
+            'SELECT id, username, password FROM users WHERE username = ?',
             [username]
         );
 
