@@ -7,6 +7,7 @@ const DB_CONFIG = {
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || 'Maogo071019@',
   database: process.env.DB_NAME || 'task_schedule_db',
+  ...(process.env.DB_SSL === 'true' ? { ssl: {} } : {}),
 };
 
 class MysqlPool {
