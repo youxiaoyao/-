@@ -14,6 +14,11 @@ const getAllTasks = async (): Promise<(Task & { recommendedTime?: string, id: st
       }
     });
     const data = await res.json();
+    if (!data || data.code !== 200 || !Array.isArray(data.data)) {
+      console.warn('后端返回异常', data);
+      alert('获取任务失败，请检查后端是否启动！');
+      return [];
+    }
     // 后端字段映射到前端（核心修复：统一日期格式）
     return data.data.map((task: any) => ({
       id: task.id.toString(), // 后端id是数字 → 前端统一为字符串

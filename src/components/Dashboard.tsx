@@ -11,6 +11,10 @@ type Category = '学习' | '生活' | '娱乐';
 const getTasks = async (): Promise<(Task & { recommendedTime?: string })[]> => {
   try {
     const data = await authGet('/tasks');
+    if (!data || data.code !== 200 || !Array.isArray(data.data)) {
+      console.warn('后端返回异常，使用本地数据', data);
+      return JSON.parse(localStorage.getItem('tasks') || '[]');
+    }
     // 后端字段映射到前端（核心修复：统一日期格式）
     return data.data.map((item: any) => ({
       id: item.id.toString(),
@@ -103,10 +107,15 @@ const getWeekSchedules = async (): Promise<Record<string, Schedule[]>> => {
     const data = await authGet('/schedules');
     const weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
     const weekSchedules: Record<string, Schedule[]> = {};
-    
+
     // 初始化空课表
     weekDays.forEach(day => weekSchedules[day] = []);
-    
+
+    if (!data || data.code !== 200 || !Array.isArray(data.data)) {
+      console.warn('获取课表异常，使用空数据', data);
+      return weekSchedules;
+    }
+
     // 映射后端数据到前端
     data.data.forEach((item: any) => {
       const day = item.weekday || '周一';
